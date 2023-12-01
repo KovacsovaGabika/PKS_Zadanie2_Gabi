@@ -31,6 +31,8 @@ class ServerThread:
     def run(self):
         while not self.stop_event.is_set():
             self.target_function()  # (self.args)
+        
+        return
 
     def start(self):
         self.thread.start()
@@ -44,8 +46,7 @@ class Server:
     def __init__(self):
         self.thread1 = ServerThread(self.recieve)
         self.thread2 = ServerThread(self.keep_alive)
-        self.thread3 = ServerThread(self.broadcast)
-        self.thread4 = ServerThread(self.akcia)
+        self.thread3 = ServerThread(self.akcia)
         self.messages = queue.Queue()
         self.clients = []
         self.ka_time = None
@@ -57,40 +58,47 @@ class Server:
         self.server.bind(("localhost", 7003))
 
     def recieve(self):
-        while True:
+        while not self.thread1.stop_event.is_set():
             try:
                 message, self.addr = self.server.recvfrom(1024)
-                if message.decode() == "00000001":  # syn
-                    self.server.sendto("00000101".encode(), self.addr)  # ack
+                message=int.from_bytes(message,byteorder="big")
+                print(message)
+
+                if message == 1:  # syn
+                    flag=5
+                    self.server.sendto(flag.to_bytes(1,byteorder="big"), self.addr)  # ack
                     print(f"Handshake uspesny")
-                elif message.decode() == "00000010":  # ka
+                elif message == 2:  # ka
                     self.ka_time = time.time()
-                    print("IA")
-                elif message.decode() == "00000111":
-                    self.server.sendto("00000110".encode(), self.addr)  # fin
+                    flag=3
+                    self.server.sendto(flag.to_bytes(1,byteorder="big"), self.addr)  # ack
+                    #print("IA")
+                elif message == 7:
+                    flag=6
+                    self.server.sendto(flag.to_bytes(1,byteorder="big"), self.addr)  # fin
                     self.end = 1
                     self.swap = 1
                 else:
                     self.messages.put((message, self.addr))
-
-
             except:
                 pass
 
     def keep_alive(self):
 
-        while self.end != 1:
+        while not self.thread1.stop_event.is_set():
             time.sleep(2)
-            if self.ka_time is not None and time.time() - self.ka_time > 40:
-                print("40s nebolo ka...")
-                self.server.sendto("00000110".encode(), self.addr) #fin
+            if self.ka_time is not None and time.time() - self.ka_time > 10:
+                print("10s nebolo ka...")
+                flag=6
+                self.server.sendto(flag.to_bytes(1,byteorder="big"), self.addr) #fin
                 self.end = 1
 
 
-    # server.sendto("00000110".encode(), addr)  # ak 40s nic ta fin
+    # server.sendto(6.encode(), addr)  # ak 40s nic ta fin
 
     def swapf(self):
-        self.server.sendto("00000111".encode(), self.addr)
+        flag=7
+        self.server.sendto(flag.to_bytes(1,byteorder="big"), self.addr)
 
 
     def recieve_file(self, filename):
@@ -101,8 +109,13 @@ class Server:
                     break
 
     def akcia(self):
-        while True:
-            akcia = input("a) posli subor/b) swap/c) end")
+        while not self.thread3.stop_event.is_set():
+            try:
+                akcia = input("a) posli subor/b) swap/c) end")
+            except:
+                print("Zavírame kasíno ! 💔")
+                exit()
+
             if akcia == "a":
                 pass
             elif akcia == "b":
@@ -116,27 +129,13 @@ class Server:
                     self.server.close()
 
             elif akcia == "c":
-                self.thread3.stop()
-                break
-
-    def broadcast(self):
-        while True:
-            while not self.messages.empty():
-                message, addr = self.messages.get()
-                print(message.decode())
-                if addr not in self.clients:
-                    self.clients.append(addr)
-                for client in self.clients:
-                    try:
-                        self.server.sendto(message, client)
-                    except:
-                        self.clients.remove(client)
+                self.end=1
+                return
 
     def start(self):
         self.thread1.start()
         self.thread2.start()
         self.thread3.start()
-        self.thread4.start()
 
         while self.end != 1:
             pass
@@ -144,10 +143,9 @@ class Server:
         self.thread3.stop()
         self.thread2.stop()
         self.thread1.stop()
-        self.thread4.stop()
 
         if self.end == 1:
-            self.server.close()
+            exit(0)
 
 # messages = queue.Queue()
 # clients = []

@@ -39,12 +39,14 @@ class Client:
         self.client.bind(("localhost", random.randint(8000, 9000)))
 
     def recieve(self):
-        while True:
+        while not self.thread1.stop_event.is_set():
             try:
                 message, _ = self.client.recvfrom(1024)
-                self.messages.put(message.decode())
+                message=int.from_bytes(message,byteorder="big")
+                print(message)
+                self.messages.put(message)
 
-                if message.decode() == "00000111":
+                if message == 7:
                     self.swap = 1
                     self.end = 1
                     #self.thread1.stop()
@@ -59,40 +61,51 @@ class Client:
                 pass
 
     def handshake(self):
-        self.client.sendto("00000001".encode(), ("localhost", 7003))  # syn
+        flag=1
+        self.client.sendto(flag.to_bytes(1,byteorder="big"), ("localhost", 7003))  # syn
         message, _ = self.client.recvfrom(1024)
-        if message.decode() == "00000101":
+
+        message=int.from_bytes(message,byteorder="big")
+        print(message)
+
+        if message == 5:
             return 1
         return 0
 
     def keep_alive(self):
-        while True:
+        while not self.thread2.stop_event.is_set():
             time.sleep(1)
-            self.client.sendto("00000010".encode(), ("localhost", 7003))  # ka
-            print("KA")
+            flag=2
+            self.client.sendto(flag.to_bytes(1,byteorder="big"), ("localhost", 7003))  # ka
+            #print("KA")
 
     def swapf(self):
-        self.client.sendto("00000111".encode(), ("localhost", 7003))
+        flag=7
+        self.client.sendto(flag.to_bytes(1,byteorder="big"), ("localhost", 7003))
 
     def akcia(self):
-        while True:
+        while not self.thread3.stop_event.is_set():
+            try:
+                akcia = input("a) posli subor/b) swap/c) end")
+            except:
+                print("Zavírame kasíno ! 💔")
+                exit()
 
-            self.akcia = input("a) posli subor/b) swap/c) end")
-            if self.akcia == "a":
+            if akcia == "a":
                 pass
-            elif self.akcia == "b":
+            elif akcia == "b":
                 self.swapf()
                 self.end = 1
                 self.thread1.stop()
                 self.thread2.stop()
-                #self.thread3.stop()
+                self.thread3.stop()
                 self.swap = 1
                 if self.end == 1:
-                    self.client.close()
+                    self.server.close()
 
-            else:
-                #self.thread3.stop()
-                break
+            elif akcia == "c":
+                self.end=1
+                return
 
     def start(self):
         if self.prvy_beh == 0:
@@ -103,14 +116,12 @@ class Client:
         self.thread2.start()
         self.thread3.start()
 
-        ending_condition = self.messages.get()
-        while ending_condition != "00000110":
-            ending_condition = self.messages.get()
+        while self.end !=1:
+            pass
 
-        self.end = 1
         self.thread1.stop()
         self.thread2.stop()
         self.thread3.stop()
 
         if self.end == 1:
-            self.client.close()
+            exit(0)

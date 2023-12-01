@@ -1,29 +1,6 @@
 import server
 import client
 
-import threading
-
-
-class TheThread:
-    def __init__(self, target_function):
-        self.target_function = target_function
-        # self.args = args
-
-        self.stop_event = threading.Event()
-        self.thread = threading.Thread(target=self.run)
-
-    def run(self):
-        while not self.stop_event.is_set():
-            self.target_function()  # (self.args)
-
-    def start(self):
-        self.thread.start()
-
-    def stop(self):
-        self.stop_event.set()
-        self.thread.join(timeout=0)
-
-
 count = 0
 volba = 0
 
